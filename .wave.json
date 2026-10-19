@@ -1,0 +1,9 @@
+{
+  "base": "main",
+  "protected": [
+    "plans"
+  ],
+  "gate": [
+    "npm run gate"
+  ]
+}
