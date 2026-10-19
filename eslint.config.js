@@ -23,7 +23,8 @@ export default defineConfig([
   {
     // shadcn registry files legitimately export variants alongside components;
     // the fast-refresh constraint only applies to app component files.
-    files: ['src/components/ui/**/*.{ts,tsx}'],
+    // Context providers pair the component with its hook by convention.
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/state/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },
