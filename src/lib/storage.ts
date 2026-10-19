@@ -1,4 +1,4 @@
-import type { DorkState } from "./dork";
+import { isDorkState, type DorkState } from "./dork";
 
 const KEY = "ghsb.v1";
 const HISTORY_CAP = 50;
@@ -36,10 +36,10 @@ export function parseSnapshot(raw: string): Snapshot | undefined {
     const o = JSON.parse(raw) as Snapshot;
     if (o?.v !== 1 || !Array.isArray(o.favorites) || !Array.isArray(o.history)) return undefined;
     for (const h of o.history) {
-      if (typeof h.query !== "string" || typeof h.at !== "number" || !h.state) return undefined;
+      if (typeof h.query !== "string" || typeof h.at !== "number" || !isDorkState(h.state)) return undefined;
     }
     for (const f of o.favorites) {
-      if (typeof f.name !== "string" || !f.state) return undefined;
+      if (typeof f.name !== "string" || !isDorkState(f.state)) return undefined;
     }
     return { v: 1, favorites: o.favorites, history: o.history };
   } catch {

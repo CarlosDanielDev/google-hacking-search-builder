@@ -15,7 +15,7 @@ describe("rule 1 — duplicate families merge, all×slot conflicts", () => {
   it("merges duplicate sites and never emits site: twice without OR", () => {
     const v = validateState(base({ sites: ["t.me", "t.me", "pastebin.com"], topics: ["x"] }));
     expect(v.ok).toBe(true);
-    if (v.ok) expect(buildQuery(v.state)!.query).toBe("(site:t.me OR site:pastebin.com) intitle:x intext:x");
+    if (v.ok) expect(buildQuery(v.state)!.query).toBe("(site:t.me OR site:pastebin.com) intitle:x x");
   });
 
   it("blocks allintitle with slot intitle (rule 1 conflict)", () => {
@@ -153,6 +153,29 @@ describe("rule 9 — range", () => {
     const v = validateState(base({ topics: ["x"], range: { min: 100 } }));
     expect(v.ok).toBe(true);
     if (v.ok) expect(buildQuery(v.state)!.query).toContain("100..");
+  });
+});
+
+describe("rule 10 — curinga nunca fica solto", () => {
+  it("blocks a bare wildcard with no phrase and no topic", () => {
+    const v = validateState(base({ sites: ["t.me"], wildcard: true }));
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.errors.map((e) => e.kind)).toContain("WILDCARD_BARE");
+  });
+  it("attaches the wildcard inside the topic's operator: intitle:\"filmes *\"", () => {
+    const v = validateState(base({ topics: ["filmes"], slot: "intitle", wildcard: true }));
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(buildQuery(v.state)!.query).toBe('intitle:"filmes *"');
+  });
+  it("attaches the wildcard inside the phrase", () => {
+    const v = validateState(base({ phrase: "melhores filmes", wildcard: true }));
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(buildQuery(v.state)!.query).toBe('"melhores filmes *"');
+  });
+  it("título+texto renders one operator plus the plain term — no redundant intext pair", () => {
+    const v = validateState(base({ topics: ["filmes"] }));
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(buildQuery(v.state)!.query).toBe("intitle:filmes filmes");
   });
 });
 
