@@ -38,7 +38,8 @@ export type DorkError =
   | { kind: "DATE_ORDER" }
   | { kind: "BAD_FILETYPE"; value: string }
   | { kind: "BAD_RANGE" }
-  | { kind: "NEGATIVE_RANGE" };
+  | { kind: "NEGATIVE_RANGE" }
+  | { kind: "WILDCARD_BARE" };
 
 /** rule 4 — accept only a bare hostname; fix what is fixable, reject the rest */
 export function normalizeDomain(raw: string): { ok: true; domain: string } | { ok: false; reason: string } {
@@ -57,6 +58,34 @@ export function normalizeDomain(raw: string): { ok: true; domain: string } | { o
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const SLOTS: Slot[] = ["intitle", "intext", "inurl", "intitle+intext"];
+const USE_ALL: UseAll[] = ["none", "title", "text", "url"];
+
+/** Structural guard for states coming from outside the app (localStorage,
+ *  imported JSON): a malformed state must be rejected, never mapped over. */
+export function isDorkState(x: unknown): x is DorkState {
+  if (typeof x !== "object" || x === null) return false;
+  const s = x as Record<string, unknown>;
+  const strArr = (v: unknown) => Array.isArray(v) && v.every((i) => typeof i === "string");
+  const optNum = (v: unknown) => v === undefined || typeof v === "number";
+  if (typeof s.range !== "object" || s.range === null) return false;
+  const r = s.range as Record<string, unknown>;
+  return (
+    strArr(s.sites) &&
+    strArr(s.topics) &&
+    strArr(s.filetype) &&
+    strArr(s.exclude) &&
+    typeof s.slot === "string" && SLOTS.includes(s.slot as Slot) &&
+    typeof s.useAll === "string" && USE_ALL.includes(s.useAll as UseAll) &&
+    typeof s.wildcard === "boolean" &&
+    typeof s.phrase === "string" &&
+    optNum(r.min) && optNum(r.max) &&
+    (s.related === undefined || typeof s.related === "string") &&
+    (s.before === undefined || typeof s.before === "string") &&
+    (s.after === undefined || typeof s.after === "string")
+  );
+}
 
 /** rule 1 (dupes/conflicts) + 4 + 7 + 8 + 9 — everything checkable without assembly.
  *  Returns the cleaned state or the first hard error. */
@@ -119,6 +148,10 @@ export function validateState(s: DorkState): { ok: true; state: DorkState } | { 
   // rule 6 — Google needs at least one positive term
   const hasPositive =
     sites.length > 0 || topics.length > 0 || filetype.length > 0 || s.phrase.trim() !== "" || !!s.related?.trim();
+
+  // rule 10 — a bare `*` matches "any word" nowhere useful: the wildcard must
+  // attach to a phrase or a topic, never float alone at the end of the query
+  if (s.wildcard && !s.phrase.trim() && topics.length === 0) errors.push({ kind: "WILDCARD_BARE" });
   if (!hasPositive && exclude.length > 0) errors.push({ kind: "ONLY_EXCLUSIONS" });
 
   if (errors.length) return { ok: false, errors };
@@ -156,17 +189,22 @@ export function buildQuery(v: DorkState): BuiltQuery | undefined {
     intext: "intext",
     inurl: "inurl",
   };
+  // the wildcard always rides INSIDE a term ("filmes *") — validation (rule 10)
+  // guarantees it never renders bare at the end of the query
+  const wt = v.wildcard ? (t: string) => `${t} *` : (t: string) => t;
   if (v.slot === "intitle+intext") {
-    for (const t of v.topics) parts.push(`intitle:${q(t)} intext:${q(t)}`);
+    // title operator + the plain term: `intitle:x x` reads as "pages about x
+    // with x in the title" — one operator, no redundant intext:x pair
+    for (const t of v.topics) parts.push(`intitle:${q(wt(t))} ${q(t)}`);
   } else {
-    for (const t of v.topics) parts.push(`${slotOps[v.slot]}:${q(t)}`);
+    for (const t of v.topics) parts.push(`${slotOps[v.slot]}:${q(wt(t))}`);
   }
 
-  if (v.useAll === "title" && v.topics.length) parts.push(`allintitle:${v.topics.join(" ")}`);
-  if (v.useAll === "text" && v.topics.length) parts.push(`allintext:${v.topics.join(" ")}`);
-  if (v.useAll === "url" && v.topics.length) parts.push(`allinurl:${v.topics.join(" ")}`);
+  if (v.useAll === "title" && v.topics.length) parts.push(`allintitle:${v.topics.map(wt).join(" ")}`);
+  if (v.useAll === "text" && v.topics.length) parts.push(`allintext:${v.topics.map(wt).join(" ")}`);
+  if (v.useAll === "url" && v.topics.length) parts.push(`allinurl:${v.topics.map(wt).join(" ")}`);
 
-  if (v.phrase.trim()) parts.push(q(v.phrase.trim()));
+  if (v.phrase.trim()) parts.push(q(wt(v.phrase.trim())));
   for (const f of v.filetype) parts.push(`filetype:${f}`);
   if (v.before) parts.push(`before:${v.before}`);
   if (v.after) parts.push(`after:${v.after}`);
@@ -174,7 +212,6 @@ export function buildQuery(v: DorkState): BuiltQuery | undefined {
     parts.push(`${v.range.min ?? ""}..${v.range.max ?? ""}`);
   if (v.related) parts.push(`related:${v.related}`);
   for (const t of v.exclude) parts.push(`-${q(t)}`);
-  if (v.wildcard) parts.push("*");
 
   const query = parts.join(" ").trim();
   if (!query) return undefined;
@@ -209,5 +246,7 @@ export function errorToPtBr(e: DorkError): string {
       return "Faixa numérica invertida: o mínimo passa do máximo.";
     case "NEGATIVE_RANGE":
       return "Faixa numérica não aceita negativos.";
+    case "WILDCARD_BARE":
+      return "Curinga * solto não restringe nada: use com uma frase ou um tópico.";
   }
 }

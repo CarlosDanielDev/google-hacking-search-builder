@@ -41,7 +41,12 @@ describe("import malformado", () => {
   });
   it("parseSnapshot rejeita histórico sem os campos obrigatórios", () => {
     expect(parseSnapshot('{"v":1,"favorites":[],"history":[{"query":"x"}]}')).toBeUndefined();
-    expect(importSnapshot('{"v":1,"favorites":[{"id":"x","name":"n","state":{}}],"history":[]}')).toBeDefined();
+    const validState = { sites: [], topics: [], slot: "intitle", filetype: [], exclude: [], phrase: "", range: {}, wildcard: false, useAll: "none" };
+    expect(importSnapshot(JSON.stringify({ v: 1, favorites: [{ id: "x", name: "n", state: validState }], history: [] }))).toBeDefined();
+  });
+  it("parseSnapshot rejeita state malformado (anti-DoS: nunca mapeia lixo)", () => {
+    const bad = '{"v":1,"favorites":[{"id":"x","name":"n","state":{"topics":"não sou array"}}],"history":[]}';
+    expect(parseSnapshot(bad)).toBeUndefined();
   });
 });
 
