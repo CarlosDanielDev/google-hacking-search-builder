@@ -1,0 +1,10 @@
+# key	title	labels	parent
+ghsb	Google Hacking Search Builder — épico	feature,epic	-
+scaffold	Scaffold Vite+React+TS+Tailwind+shadcn com gate local e CI	chore	ghsb
+core	Motor de dorks: catálogo de operadores, validação poka-yoke e montagem da query	story	ghsb
+ui-inputs	UI de alvos: presets de site + domínio custom + tópicos	story	ghsb
+ui-palette	Paleta de operadores com estados bloqueados e conflitos visíveis	story	ghsb
+ui-output	Preview da query, medidor de 32 palavras, copiar e abrir no Google	story	ghsb
+presets	Galeria de dorks prontos por objetivo	story	ghsb
+persistence	Histórico e favoritos em localStorage com export/import JSON	story	ghsb
+audit	Auditoria poka-yoke no app montado	story	ghsb

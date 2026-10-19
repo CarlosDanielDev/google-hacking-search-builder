@@ -1,0 +1,10 @@
+# blocked	blocker
+core	scaffold
+ui-inputs	core
+ui-palette	ui-inputs
+ui-output	ui-inputs
+ui-output	ui-palette
+presets	ui-output
+persistence	ui-output
+audit	presets
+audit	persistence
